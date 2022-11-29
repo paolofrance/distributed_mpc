@@ -18,7 +18,7 @@ find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 
 catkin_package(
  INCLUDE_DIRS include
-#  LIBRARIES gt_traj_deformation
+ LIBRARIES ${PROJECT_NAME}
  CATKIN_DEPENDS 
  DEPENDS EIGEN3
 )
@@ -28,10 +28,22 @@ include_directories( include ${catkin_INCLUDE_DIRS} )
 
 
 add_library(
-d_mpc src/distributed_mpc/d_mpc.cpp
+${PROJECT_NAME} src/distributed_mpc/d_mpc.cpp
+)
+target_link_libraries(${PROJECT_NAME}  ${catkin_LIBRARIES} Eigen3::Eigen)
+
+install(
+  TARGETS ${PROJECT_NAME}
+  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION}
+)
+install(
+  DIRECTORY include/${PROJECT_NAME}/
+  DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
 )
 
 add_executable(mpc_node src/distributed_mpc/mpc_node.cpp)
-target_link_libraries(mpc_node d_mpc ${catkin_LIBRARIES})
+target_link_libraries(mpc_node ${PROJECT_NAME} ${catkin_LIBRARIES})
 
 

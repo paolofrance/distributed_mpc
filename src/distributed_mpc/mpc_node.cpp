@@ -15,10 +15,9 @@ int main(int argc, char **argv)
   ros::init(argc, argv, "d_mpc");
   ros::NodeHandle n;
   
-  int N=2;
+  int N=50;
   int n_dofs=1;
-  double dt = 0.01;
-  DistMPC dMPC(n_dofs,N,dt);
+  double dt = 0.008;
   
   std::vector<double> time = range(0.0,10.0,dt);
   
@@ -35,10 +34,10 @@ int main(int argc, char **argv)
   
   Eigen::MatrixXd Ac;
   Eigen::MatrixXd Bc;
-  Eigen::MatrixXd C;
+  Eigen::MatrixXd Cc;
   Ac.resize(2,2);
   Bc.resize(2,1);
-  C.resize(1,2);
+  Cc.resize(1,2);
   
   double m,c,k;
   
@@ -53,13 +52,14 @@ int main(int argc, char **argv)
   Bc << 0,
         1/m;
        
-  C << 1, 0;
+  Cc << 1, 0;
   
-  dMPC.setC2DSysParams(Ac,Bc,C);
+  DistMPC dMPC(n_dofs,N,dt);
+  dMPC.setC2DSysParams(Ac,Bc,Cc);
   
-  Eigen::VectorXd x=Eigen::VectorXd::Zero(4);
-  dMPC.setInitialState(x);
-
+  Eigen::VectorXd x=Eigen::VectorXd::Zero(2*n_dofs);
+  dMPC.setCurrentState(x);
+  
   Eigen::MatrixXd Qh; Qh.resize(2,2); 
   Qh <<1,0,
        0,0;
@@ -73,16 +73,50 @@ int main(int argc, char **argv)
   dMPC.setCostsParams(Qh,Rh,Qr,Rr);
 
   dMPC.setAlpha(alpha);  
-  Eigen::MatrixXd K_mpc = dMPC.distCoopMPCGain();
-  dMPC.setReference(ref_h.segment(0,N),ref_r.segment(0,N));
-  Eigen::VectorXd uh,ur;
-  dMPC.getControlInputs(uh,ur);
   
-  for (int i = 0;i<100;i++)  
+  Eigen::MatrixXd K_mpc = dMPC.distCoopMPCGain();
+//   dMPC.setReference(ref_h.segment(0,N),ref_r.segment(0,N));
+//   Eigen::VectorXd uh,ur;
+//   dMPC.getControlInputs(uh,ur);
+  
+  
+  Eigen::VectorXd X; X.resize(2*n_dofs); X.setZero();
+  
+  
+  Eigen::MatrixXd A,B,C;
+  dMPC.getSysParams(A,B,C);
+  
+  ROS_INFO_STREAM("A\n"<<A);
+  ROS_INFO_STREAM("B\n"<<B);
+  
+  
+  Eigen::MatrixXd Aa = dMPC.blkdiag(A,2);
+  Eigen::MatrixXd Ba; Ba.resize(2*B.rows(),B.cols());
+  Ba << B,
+        B;
+  Eigen::VectorXd Xa; Xa.resize(4*n_dofs);
+  Xa << X,X;
+  
+  for (int i = 0;i<10;i++)  
   {
-    dMPC.step(ref_h.segment(i,i+N-1), ref_r.segment(i,i+N-1));
+
+    ROS_INFO_STREAM(X);
     
-    ROS_INFO_STREAM(dMPC.getCurrentState());
+  auto mid = std::chrono::steady_clock::now();
+  Eigen::MatrixXd K_mpc = dMPC.distCoopMPCGain();
+  
+//   Eigen::VectorXd control = dMPC.controlInputs(X,ref_h.segment(i,i+N-1), ref_r.segment(i,i+N-1));
+  
+    X = dMPC.step(ref_h.segment(i,i+N-1), ref_r.segment(i,i+N-1));
+    
+//   X = A*X+B*control.segment(0,n_dofs)+B*control.segment(n_dofs,n_dofs);
+  
+  ROS_INFO_STREAM("X: "<<X.transpose());
+  
+  auto end = std::chrono::steady_clock::now();
+  ROS_INFO_STREAM("time to compute: "<<std::chrono::duration_cast<std::chrono::microseconds>(end- mid).count());
+  
+    
     
   }
   

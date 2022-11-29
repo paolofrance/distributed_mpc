@@ -3,16 +3,18 @@
 
 DistMPC::DistMPC(const int& n_dofs, const int& N, const double& dt): n_dofs_(n_dofs), N_(N),dt_(dt)
 {
-  A_.resize(2*2*n_dofs_,2*2*n_dofs_);
-  B_.resize(2*2*n_dofs_,1);
-  C_.resize(2*n_dofs_,2*2*n_dofs_);
+  A_.resize(2*n_dofs_,2*n_dofs_);
+  B_.resize(2*n_dofs_,1);
+  C_.resize(n_dofs_,2*n_dofs_);
+  X_.resize(2*n_dofs_);
   
-  X_.resize(2*2*n_dofs_);
-  
-  reference_.resize(2*(X_.size() + 2*N ),1);
+  reference_.resize(2*(2*X_.size() + 2*N ),1);
   
   reference_.setZero();
-  state_ok_ = false;
+  state_ok_       = false;
+  sys_params_set_ = false;
+  cost_params_set_= false;
+  gains_set_      = false;
 }
 
 bool DistMPC::c2d (const Eigen::MatrixXd& A,const Eigen::MatrixXd& B, const double& dt, Eigen::MatrixXd& Ad,Eigen::MatrixXd& Bd)
@@ -27,10 +29,38 @@ void DistMPC::setSysParams( const Eigen::MatrixXd& A,
                             const Eigen::MatrixXd& B,
                             const Eigen::MatrixXd& C)
 {
-  A_= blkdiag(A,N_);
-  B_<< B,
-       B;
-  C_= blkdiag(C ,N_);  
+  A_ = A;
+  B_ = B;
+  C_ = C;
+  
+  Eigen::MatrixXd Aa = blkdiag(A,2);
+  Eigen::MatrixXd Ba;Ba.resize(2*B_.rows(),B_.cols()); 
+  Ba << B,
+        B;
+  Eigen::MatrixXd Ca = blkdiag(C,2);  
+  
+  theta_ = Ylowtriangular(Aa,Ba,Ca,N_);
+  psi_ = YColMat(Aa,Ca,N_); 
+  
+  sys_params_set_ = true;
+  
+}
+
+bool DistMPC::getSysParams(Eigen::MatrixXd& A,
+                           Eigen::MatrixXd& B,
+                           Eigen::MatrixXd& C)
+{
+  if(!sys_params_set_)
+  {
+    ROS_ERROR("system params not yet set. return");
+    return false;
+  }
+  
+  A = A_;
+  B = B_;
+  C = C_;
+  
+  return true;
 }
 
 void DistMPC::setC2DSysParams(const Eigen::MatrixXd& A,
@@ -53,44 +83,47 @@ void DistMPC::setCostsParams( const Eigen::MatrixXd& Q1,
   R1_ = R1;
   Q2_ = Q2;
   R2_ = R2;
+  cost_params_set_ = true;
 }
 
 Eigen::MatrixXd DistMPC::distCoopMPCGain()
 {
+  if (!sys_params_set_)
+  {
+    ROS_ERROR_STREAM("System parameters not set. use setC2DSysParams or setSysParams to set the parameters before !");
+  }
+  if (!cost_params_set_)
+  {
+    ROS_ERROR_STREAM("Cost parameters not set. use setCostsParams to set the parameters before !");
+  }
+
   Eigen::MatrixXd Q = alpha_*Q1_ + (1-alpha_)*Q2_;
   Eigen::MatrixXd R1 = alpha_*R1_;
   Eigen::MatrixXd R2 = (1-alpha_)*R2_;
-  
-  return distMPCGain(A_,B_,C_,Q,R1,Q,R2,N_);
+
+  return distMPCGain(Q,R1,Q,R2,N_);
 }
 
 
-Eigen::MatrixXd DistMPC::distMPCGain( const Eigen::MatrixXd& A,
-                                      const Eigen::MatrixXd& B,
-                                      const Eigen::MatrixXd& C,
-                                      const Eigen::MatrixXd& Q1,
+Eigen::MatrixXd DistMPC::distMPCGain( const Eigen::MatrixXd& Q1,
                                       const Eigen::MatrixXd& R1,
                                       const Eigen::MatrixXd& Q2,
                                       const Eigen::MatrixXd& R2,
                                       const int& N)
 {
- 
-  Eigen::MatrixXd theta = Ylowtriangular(A,B,C,N);
-  Eigen::MatrixXd psi = YColMat(A,C,N); 
-
   Eigen::MatrixXd Qh_bar = blkdiag(Q1,N);
   Eigen::MatrixXd Rh_bar = blkdiag(R1,N);
   Eigen::MatrixXd Qr_bar = blkdiag(Q2,N);
   Eigen::MatrixXd Rr_bar = blkdiag(R2,N);
   
-  Eigen::MatrixXd L1 = ( theta.transpose() * Qh_bar * theta + Rh_bar ).inverse() * theta.transpose() * Qh_bar;
-  Eigen::MatrixXd L2 = ( theta.transpose() * Qr_bar * theta + Rr_bar ).inverse() * theta.transpose() * Qr_bar;
+  Eigen::MatrixXd L1 = ( theta_.transpose() * Qh_bar * theta_ + Rh_bar ).inverse() * theta_.transpose() * Qh_bar;
+  Eigen::MatrixXd L2 = ( theta_.transpose() * Qr_bar * theta_ + Rr_bar ).inverse() * theta_.transpose() * Qr_bar;
     
-  Eigen::MatrixXd gamma_1(L1.rows(), L1.cols() + 4); gamma_1 << -L1*psi, L1;
-  Eigen::MatrixXd gamma_2(L2.rows(), L2.cols() + 4); gamma_2 << -L2*psi, L2;
+  Eigen::MatrixXd gamma_1(L1.rows(), L1.cols() + 4); gamma_1 << -L1*psi_, L1;
+  Eigen::MatrixXd gamma_2(L2.rows(), L2.cols() + 4); gamma_2 << -L2*psi_, L2;
   
-  Eigen::MatrixXd lambda_1 = L1*theta;
-  Eigen::MatrixXd lambda_2 = L2*theta;
+  Eigen::MatrixXd lambda_1 = L1*theta_;
+  Eigen::MatrixXd lambda_2 = L2*theta_;
 
   Eigen::MatrixXd K1(2*N,2*N); K1.setZero();
   K1 << Eigen::MatrixXd::Identity(lambda_1.rows(), lambda_1.cols()), -lambda_1,
@@ -100,6 +133,8 @@ Eigen::MatrixXd DistMPC::distMPCGain( const Eigen::MatrixXd& A,
         Eigen::MatrixXd::Zero(gamma_2.rows(), gamma_2.cols()), gamma_2;
 
   K_mpc_ = K1.inverse() *K2;
+  
+  gains_set_ = true;
   
   return K_mpc_;
 }
@@ -114,15 +149,17 @@ void DistMPC::setAlpha(const double& alpha)
   alpha_ = alpha;
 }
 
-void DistMPC::setInitialState(const Eigen::VectorXd& x)
-{
+bool DistMPC::setCurrentState(const Eigen::VectorXd& x)
+{  
+  if (x.size() != 2*n_dofs_)
+  {
+    ROS_ERROR_STREAM("State size is not correct. got: "<< x.size()<<", required: "<< 2*n_dofs_);
+    return false;
+  }
+
   X_ = x;
   state_ok_=true;
-}
-void DistMPC::setCurrentState(const Eigen::VectorXd& x)
-{
-  X_ = x;
-  state_ok_=true;
+  return true;
 }
 
 bool DistMPC::setReference(const Eigen::VectorXd& ref_h, const Eigen::VectorXd& ref_r)
@@ -131,6 +168,11 @@ bool DistMPC::setReference(const Eigen::VectorXd& ref_h, const Eigen::VectorXd& 
   {
     ROS_ERROR("State not set properly! ");
     return false;
+  }
+  if(ref_h.size()<N_ || ref_r.size()<N_)
+  {
+    ROS_ERROR_STREAM("Reference length is not correct! required: " << N_ <<", got ref_h.size(): "<<ref_h.size()<<" and ref_r.size(): "<< ref_r.size() );
+    return false;    
   }
   
   Eigen::VectorXd ref_vec; ref_vec.resize(2*ref_h.size());
@@ -141,30 +183,47 @@ bool DistMPC::setReference(const Eigen::VectorXd& ref_h, const Eigen::VectorXd& 
     ref_vec(2*i+1) = ref_r(i);
   }
 
-  reference_.segment(0,X_.size()) = X_;  
-  reference_.segment(X_.size(),ref_vec.size()) = ref_vec;
-  reference_.segment(X_.size()+ref_vec.size(),(X_.size()+ref_vec.size())) = reference_.segment(0, N_+ref_vec.size());
+  reference_.segment(0,2*X_.size())<< X_,X_;  
+  reference_.segment(2*X_.size(),ref_vec.size()) = ref_vec;
+  reference_.segment(2*X_.size()+ref_vec.size(),(2*X_.size()+ref_vec.size())) = reference_.segment(0, N_+ref_vec.size());
 
   state_ok_ = false;
 
   return true;
 }
 
-void DistMPC::getControlInputs(Eigen::VectorXd& u1, Eigen::VectorXd& u2)
+bool DistMPC::getControlInputs(Eigen::VectorXd& u1, Eigen::VectorXd& u2)
 {
+  if(!gains_set_)
+  {
+      ROS_ERROR_STREAM("Gains are not yet computed. use distMPCGain or distCoopMPCGain functions before");
+      return false;
+  }
+
   Eigen::VectorXd U = K_mpc_*reference_;
-  
+    
+  if(U.size()< 2*N_)
+  {
+    ROS_ERROR_STREAM("Control vector length is not correct! required: " << 2*N_ <<", got U.size(): "<<U.size() );
+    return false;    
+  }
   u1 = U.segment(0,n_dofs_);
   u2 = U.segment(N_,n_dofs_);
+  return true;
 }
 
 Eigen::VectorXd DistMPC::controlInputs(const Eigen::VectorXd& x, const Eigen::VectorXd& ref_h, const Eigen::VectorXd& ref_r)
 {
+  if (x.size() != 2*n_dofs_)
+  {
+    ROS_ERROR_STREAM("State size is not correct. got: "<< x.size()<<", required: "<< 2*n_dofs_);
+  }
   setCurrentState(x);
   setReference(ref_h.segment(0,N_),ref_r.segment(0,N_));
   
   Eigen::VectorXd u1,u2;
-  getControlInputs(u1,u2);
+  if (!getControlInputs(u1,u2))
+    ROS_ERROR("something wrong in control inputs computation");
   
   Eigen::VectorXd ret; ret.resize(2*u1.size());
   ret << u1,
@@ -174,9 +233,21 @@ Eigen::VectorXd DistMPC::controlInputs(const Eigen::VectorXd& x, const Eigen::Ve
 
 Eigen::VectorXd DistMPC::step(const Eigen::VectorXd& x, const Eigen::VectorXd& ref_h, const Eigen::VectorXd& ref_r)
 {
+  
+  if (x.size() != 2*n_dofs_)
+  {
+    ROS_ERROR_STREAM("State size is not correct. got: "<< x.size()<<", required: "<< 2*n_dofs_);
+  }
+  if (!sys_params_set_)
+  {
+    ROS_ERROR_STREAM("System parameters not set. use setC2DSysParams or setSysParams to set the parameters before !");
+  }
+  
   Eigen::VectorXd u = controlInputs(x,ref_h,ref_r);
   
   X_ = A_*X_ +B_*u.segment(0,n_dofs_)+B_*u.segment(n_dofs_,n_dofs_);
+
+  ROS_INFO_STREAM("X: "<<X_.transpose());
   
   return X_;
 }
@@ -196,7 +267,6 @@ Eigen::MatrixXd DistMPC::blkdiag(const Eigen::MatrixXd& a, int count)
     {
         bdm.block(i * a.rows(), i * a.cols(), a.rows(), a.cols()) = a;
     }
-
     return bdm;
 }
 
