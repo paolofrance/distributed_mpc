@@ -23,7 +23,7 @@ catkin_package(
  DEPENDS EIGEN3
 )
 
-include_directories( include ${catkin_INCLUDE_DIRS} )
+include_directories( include ${catkin_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIR})
 
 
 

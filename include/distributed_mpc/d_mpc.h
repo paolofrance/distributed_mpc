@@ -1,13 +1,13 @@
 #pragma once
 
 #include <ros/ros.h>
-#include <eigen3/Eigen/Dense>
+#include <Eigen/Dense>
 
 class DistMPC
 {
 public:
 
-  DistMPC(const int& n_dofs, const int& N, const double& dt);
+  DistMPC(const int& n_dofs, const int& N);
   
   bool c2d (const Eigen::MatrixXd& A,const Eigen::MatrixXd& B, const double& dt,Eigen::MatrixXd& Ad,Eigen::MatrixXd& Bd);
   
@@ -26,7 +26,8 @@ public:
   
   void setC2DSysParams(const Eigen::MatrixXd& A,
                        const Eigen::MatrixXd& B,
-                       const Eigen::MatrixXd& C);
+                       const Eigen::MatrixXd& C,
+                       const double& dt);
 
   
   Eigen::MatrixXd distCoopMPCGain();
@@ -38,11 +39,10 @@ public:
                               const int& N);
   
   
-  void setAlpha(const double& alpha);
+  bool setAlpha(const double& alpha);
   bool setCurrentState(const Eigen::VectorXd& x);
 
   bool setReference(const Eigen::VectorXd& ref_h, const Eigen::VectorXd& ref_r);
-  bool getControlInputs(Eigen::VectorXd& u1, Eigen::VectorXd& u2);
   
   Eigen::MatrixXd blkdiag(const Eigen::MatrixXd& a, int count);
   
@@ -50,11 +50,15 @@ public:
   Eigen::VectorXd step(const Eigen::VectorXd& x, const Eigen::VectorXd& ref_h, const Eigen::VectorXd& ref_r);
   Eigen::VectorXd step(const Eigen::VectorXd& ref_h, const Eigen::VectorXd& ref_r);
   Eigen::VectorXd getCurrentState();
+  bool getControlInputs(Eigen::VectorXd& u1, Eigen::VectorXd& u2);
 
 protected:
   
+  bool computeControlInputs(Eigen::VectorXd& u1, Eigen::VectorXd& u2);
   Eigen::MatrixXd Ylowtriangular(const Eigen::MatrixXd& A,const Eigen::MatrixXd& B,const Eigen::MatrixXd& C, const int& N);
   Eigen::MatrixXd YColMat(const Eigen::MatrixXd& A,const Eigen::MatrixXd& C, const int& N);
+  Eigen::MatrixXd pow(const Eigen::MatrixXd& mat, const int& pow);
+
   
   Eigen::MatrixXd A_;
   Eigen::MatrixXd B_;
@@ -69,8 +73,8 @@ protected:
   Eigen::MatrixXd Q2_;
   Eigen::MatrixXd R2_;
   
-  
   Eigen::MatrixXd K_mpc_;
+  Eigen::VectorXd U_;
   
   Eigen::VectorXd reference_;
 
@@ -78,10 +82,11 @@ protected:
   bool sys_params_set_;
   bool cost_params_set_;
   bool gains_set_;
+  bool alpha_set_;
+  bool control_set_;
   
   int n_dofs_;
   int N_;
-  double dt_;
   double alpha_;
 };
 
