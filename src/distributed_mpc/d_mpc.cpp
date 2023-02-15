@@ -196,7 +196,7 @@ bool DistMPC::setReference(const Eigen::VectorXd& ref_h, const Eigen::VectorXd& 
     ref_vec.segment(start, n_dofs_) = ref_h.segment(r_start, n_dofs_);
     ref_vec.segment(start + n_dofs_, n_dofs_) = ref_r.segment(r_start, n_dofs_);
   }
-
+  
   reference_<< X_,
                X_,
                ref_vec,
