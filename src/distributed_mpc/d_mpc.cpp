@@ -41,6 +41,8 @@ void DistMPC::setSysParams( const Eigen::MatrixXd& A,
         B;
   Eigen::MatrixXd Ca = blkdiag(C,2);  
   
+  
+  // TODO: make this two adaptive to the cooperative-noncooperative logic
   theta_ = Ylowtriangular(Aa,Ba,Ca,N_);
   psi_ = YColMat(Aa,Ca,N_); 
   
@@ -259,6 +261,9 @@ Eigen::VectorXd DistMPC::controlInputs(const Eigen::VectorXd& x, const Eigen::Ve
   setCurrentState(x);
   
   setReference(ref_h,ref_r);
+  
+  ROS_INFO_STREAM_THROTTLE(1.0,"ref_h: "<<ref_h.transpose());
+  ROS_INFO_STREAM_THROTTLE(1.0,"ref_r: "<<ref_r.transpose());
   
   Eigen::VectorXd u1,u2;
   if (!computeControlInputs(u1,u2))
