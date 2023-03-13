@@ -72,6 +72,7 @@ void DistMPC::setC2DSysParams(const Eigen::MatrixXd& A,
                               const Eigen::MatrixXd& C,
                               const double& dt)
 {
+  
   Eigen::MatrixXd Ad, Bd;
   c2d (A,B,dt,Ad,Bd);
   
@@ -124,6 +125,9 @@ Eigen::MatrixXd DistMPC::distMPCGain( const Eigen::MatrixXd& Q1,
   Eigen::MatrixXd Rh_bar = blkdiag(R1,N);
   Eigen::MatrixXd Qr_bar = blkdiag(Q2,N);
   Eigen::MatrixXd Rr_bar = blkdiag(R2,N);
+
+//   ROS_INFO_STREAM_THROTTLE(1.0,"theta:\n"<<theta_);
+//   ROS_INFO_STREAM_THROTTLE(1.0,"psi  :\n"<<psi_);
   
   Eigen::MatrixXd L1 = ( theta_.transpose() * Qh_bar * theta_ + Rh_bar ).inverse() * theta_.transpose() * Qh_bar;
   Eigen::MatrixXd L2 = ( theta_.transpose() * Qr_bar * theta_ + Rr_bar ).inverse() * theta_.transpose() * Qr_bar;
@@ -261,9 +265,9 @@ Eigen::VectorXd DistMPC::controlInputs(const Eigen::VectorXd& x, const Eigen::Ve
   setCurrentState(x);
   
   setReference(ref_h,ref_r);
-  
+  /*
   ROS_INFO_STREAM_THROTTLE(1.0,"ref_h: "<<ref_h.transpose());
-  ROS_INFO_STREAM_THROTTLE(1.0,"ref_r: "<<ref_r.transpose());
+  ROS_INFO_STREAM_THROTTLE(1.0,"ref_r: "<<ref_r.transpose());*/
   
   Eigen::VectorXd u1,u2;
   if (!computeControlInputs(u1,u2))

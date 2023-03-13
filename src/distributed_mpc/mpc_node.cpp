@@ -15,7 +15,7 @@ int main(int argc, char **argv)
   ros::init(argc, argv, "d_mpc");
   ros::NodeHandle n;
   
-  int N=50;
+  int N=5;
   double dt = 0.008;
   
   std::vector<double> time = range(0.0,10.0,dt);
