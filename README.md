@@ -10,7 +10,7 @@ $$min_{u,i} \, J_i(k) = \sum_{l=1}^{N}  e_i(k+l)^T\,Q_{i,i}\,e_i(k+l) + e_j(k+l)
 subject to
 $$z(k+1) = A\,z(k)+B_{1} u_1(k)+B_{2} u_2(k)$$
 
-$$y(k) = C \, z(k)$$
+$$y(k) = C z(k)$$
 
 
 ### TODO
@@ -19,7 +19,7 @@ $$y(k) = C \, z(k)$$
 
 ## Contacts
 if you have any questions about this repository, are interested in applications, want to contribute or anything else,
-please contact me at paolo.franceschi@supsi.Cauchy-Schwarz
+please contact me at paolo.franceschi@supsi.ch .
 
 ### Acnowledgements
 This repository was developed within the [EU Horizon 2020 DrapeBot project](https://www.drapebot.eu/) context. 
