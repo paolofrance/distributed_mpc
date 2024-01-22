@@ -6,12 +6,11 @@ This repository implements the Two player linear game.
 
 In brief, the distributed model predictive control addressed by this repository solves the following minimization problem, in the same way, for the cooperative and the non-cooperative cases.
 
-$$min_{u,i} \, J_i(k) = \sum_{l=1}^{N}  e_i(k+l)^T\,Q_{i,i}\,e_i(k+l) + e_j(k+l)^T\,Q_{i,j}\,e_j(k+l) +  + u_i(k+l)^T\,R_i\,u_i(k+l)
-\\
-s. t.
-\\
-z(k+1) = A\,z(k)+B_{1} u_1(k)+B_{2} u_2(k)\\
-y(k) = C \, z(k)$$
+$$min_{u,i} \, J_i(k) = \sum_{l=1}^{N}  e_i(k+l)^T\,Q_{i,i}\,e_i(k+l) + e_j(k+l)^T\,Q_{i,j}\,e_j(k+l) +  + u_i(k+l)^T\,R_i\,u_i(k+l)$$
+subject to
+
+$$z(k+1) = A\,z(k)+B_{1} u_1(k)+B_{2} u_2(k)$$
+$$y(k) = C \, z(k)$$
 
 
 ### TODO
